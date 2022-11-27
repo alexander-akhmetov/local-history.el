@@ -1,8 +1,9 @@
 ;;; -*- lexical-binding: t; -*-
 ;;; local-history --- history of all edited files
 
-;; Author: Alexander Akhmetov <a@alx.cx>
-;; Version: 0.1.0
+;; Author: Alexander Akhmetov <me@alx.cx>
+;; Version: 0.2.0
+;; Package-Requires: ((emacs "26.1"))
 
 ;;; Commentary:
 ;;
@@ -20,7 +21,6 @@
 ;;; Code:
 (require 'subr-x)
 
-
 (defvar local-history-path (concat user-emacs-directory "local-history-files")
   "Default place to keep backup files.")
 (defvar local-history-file-size-limit 10485760
@@ -28,12 +28,11 @@
 (defvar local-history-save-min-interval 5
   "Minimal interval (in seconds) to save backup files.")
 
-
 (defun local-history--save-file-history ()
   "Save current buffer to local history folder (LOCAL-HISTORY-PATH)."
-  (let* ((dir-to-save (backup-dir-for-current-buffer))
-         (backup-file-name (get-backup-file-path dir-to-save buffer-file-name)))
-    (when (file-needs-to-be-saved-p dir-to-save)
+  (let* ((dir-to-save (local-history--backup-dir-for-current-buffer))
+         (backup-file-name (local-history--get-backup-file-path dir-to-save buffer-file-name)))
+    (when (local-history--file-needs-to-be-saved-p dir-to-save)
       (local-history--backup-file dir-to-save buffer-file-name backup-file-name))))
 
 
@@ -43,7 +42,7 @@
   (copy-file file-name backup-file-name :ok-is-already-exists))
 
 
-(defun backup-dir-for-current-buffer ()
+(defun local-history--backup-dir-for-current-buffer ()
   "Get a full path to the current buffer's backup directory."
   (concat local-history-path
           (file-name-as-directory buffer-file-name)))
@@ -52,11 +51,11 @@
 (defun local-history--history-files ()
   "Get latest history files for the buffer."
   (when (buffer-file-name)
-    (sort (seq-subseq (directory-files-and-attributes (backup-dir-for-current-buffer) 'full) 2)
+    (sort (seq-subseq (directory-files-and-attributes (local-history--backup-dir-for-current-buffer) 'full) 2)
           #'(lambda (x y) (if (time-less-p (nth 6 x) (nth 6 y)) nil t)))))
 
 
-(defun get-backup-file-path (dir-to-save file-name)
+(defun local-history--get-backup-file-path (dir-to-save file-name)
   "Return path to save a backup file:
 
     DIR-TO-SAVE/<date>_<FILE-NAME>
@@ -68,7 +67,7 @@
           (file-name-nondirectory file-name)))
 
 
-(defun file-needs-to-be-saved-p (dir-to-save)
+(defun local-history--file-needs-to-be-saved-p (dir-to-save)
   "Return T if a new file can be added to the DIR-TO-SAVE.
 
     A file can be added if there are no files in DIR-TO-SAVE-FILE
@@ -81,47 +80,49 @@
 
 
 (defun local-history--recent-files-in-dir (dir)
-  "Return number of recent (newer than LOCAL-HISTORY-SAVE-MIN-INTERVAL) files in DIR."
+  "Return number of recent (newer than LOCAL-HISTORY-SAVE-MIN-INTERVAL)
+   files in DIR."
   (let ((command (format "find %s -type f -newermt '-%d seconds' 2>/dev/null"
-                         dir
-                         local-history-save-min-interval)))
+                  dir
+                  local-history-save-min-interval)))
     (length (shell-command-to-string command))))
 
 
 (defun local-history--save-file-history-asyn ()
-  "Start a thread to save current buffer as a file asyncronously."
+  "Start a thread to save current buffer as a file asynchronously."
   (when (buffer-file-name)
     (make-thread #'local-history--save-file-history
                  "local-history--save-file-history")))
 
 
-(defun local-history--set-hook ()
-  "Set a hook to save files when the mode is enabled."
-  (if local-history-mode
-      (add-on-save-hook)
-    (remove-on-save-hook)))
-
-
-(defun add-on-save-hook ()
+(defun local-history--add-on-save-hook ()
   "Add `after-save-hook` to save file history."
   (add-hook 'after-save-hook 'local-history--save-file-history-asyn))
 
-(defun remove-on-save-hook ()
+
+(defun local-history--remove-on-save-hook ()
   "Remove `after-save-hook`."
   (remove-hook 'after-save-hook 'local-history--save-file-history-asyn))
 
-
+;;;autoload
 (define-minor-mode local-history-mode
   "Toggle local history mode.
-The command enabled the local hostory mode.
+  The command enabled the local history mode.
 
-When local-history is enabled, every time when you save a file,
-Emacs creates a copy in LOCAL-HISTORY-PATH, so you have history of all edited files."
-  ;; The initial value.
-  nil
-  ;; The indicator for the mode line.
-  "local-history"
+  When local-history is enabled,
+  every time when you save a file,
+  Emacs creates a copy in LOCAL-HISTORY-PATH,
+  so you have history of all edited files."
+  :init-value nil
+  :lighter "local-history"
   :group 'local-history)
+
+
+(defun local-history--set-hook ()
+  "Set a hook to save files when the mode is enabled."
+  (if local-history-mode
+      (local-history--add-on-save-hook)
+    (local-history--remove-on-save-hook)))
 
 
 (define-globalized-minor-mode
@@ -132,7 +133,6 @@ Emacs creates a copy in LOCAL-HISTORY-PATH, so you have history of all edited fi
 
 ;;;###autoload
 (add-hook 'local-history-mode-hook #'local-history--set-hook)
-
 
 (provide 'local-history)
 ;;; local-history.el ends here

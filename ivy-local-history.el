@@ -1,9 +1,9 @@
 ;;; -*- lexical-binding: t; -*-
 ;;; ivy-local-history --- ivy interface for local-history
 
-;; Author: Alexander Akhmetov <a@alx.cx>
+;; Author: Alexander Akhmetov <me@alx.cx>
 ;; Version: 0.1.0
-;; Package-Requires: ((local-history "0.1.0"))
+;; Package-Requires: ((ivy "0.13.4") (local-history "0.1.0") (emacs "26.1"))
 
 ;;; Code:
 (require 'ivy)
@@ -17,7 +17,7 @@
   "Show local history for the current buffer."
   (interactive)
   (ivy-read ""
-            (local-history--history-files)
+            local-history--history-files
             :require-match t
             :action #'ivy-local-history--select-action
             :caller 'ivy-local-history))
